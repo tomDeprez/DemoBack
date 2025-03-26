@@ -4,12 +4,14 @@ namespace App\Controller;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 class AuthController extends AbstractController
 {
@@ -38,16 +40,24 @@ class AuthController extends AbstractController
     }
 
     #[Route('/api/login', name: 'api_login', methods: ['POST'])]
-    public function login(AuthenticationUtils $authenticationUtils): JsonResponse
+    public function login(AuthenticationUtils $authenticationUtils, JWTTokenManagerInterface $jwtManager, Request $request): JsonResponse
     {
-        // Symfony gère l'authentification via le firewall
         $error = $authenticationUtils->getLastAuthenticationError();
-        $lastUsername = $authenticationUtils->getLastUsername();
-
         if ($error) {
             return $this->json(['error' => $error->getMessage()], 401);
         }
 
-        return $this->json(['message' => 'Connexion réussie', 'email' => $lastUsername]);
+        $user = $this->getUser();
+        if (!$user instanceof UserInterface) {
+            return $this->json(['error' => 'Utilisateur non trouvé'], 401);
+        }
+
+        $token = $jwtManager->create($user);
+
+        return $this->json([
+            'message' => 'Connexion réussie',
+            'token' => $token,
+            'email' => $user->getEmail(),
+        ]);
     }
 }
